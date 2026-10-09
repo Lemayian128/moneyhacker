@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ttnBINNARY </title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',sans-serif;background:#0b0e14;color:#e9edf5;display:flex;flex-direction:column;align-items:center;min-height:100vh}
+.demo-banner{background:#f0b90b;color:#000;text-align:center;padding:10px;font-weight:800;font-size:13px;width:100%}
+.app-container{max-width:1440px;width:100%;background:#131a24;border-radius:24px;overflow:hidden;margin:16px}
+.header{display:flex;justify-content:space-between;padding:14px 20px;background:#0f151e;border-bottom:1px solid #1f2a37}
+.main-grid{display:grid;grid-template-columns:1fr 360px;gap:16px;padding:16px;background:#0b0e14}
+.card{background:#131a24;border-radius:18px;border:1px solid #1f2a37;overflow:hidden}
+#chartCanvas{width:100%;height:260px;background:#10171f;border-radius:12px;display:block}
+.watch-item{display:flex;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #1a2330}
+@media(max-width:1000px){.main-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div style="display:flex;gap:10px;align-items:center">
+  <span id="userEmailDisplay" style="font-size:11px;color:#8b9bb0"></span>
+  <span id="bal" style="font-weight:700">$0 DEMO</span>
+  <button id="openDeposit" style="padding:6px 12px;background:#f0b90b;border:none;border-radius:20px;font-weight:700;cursor:pointer;font-size:12px">+ Deposit DEMO</button>
+  <button id="logoutBtn" style="padding:6px 10px;background:#1a2330;border:1px solid #253141;border-radius:20px;color:white;cursor:pointer;font-size:12px">Logout</button>
+</div>
+<!-- LOGIN MODAL -->
+<div id="loginModal" style="position:fixed;inset:0;background:rgba(0,0,0,.8);display:flex;align-items:center;justify-content:center;z-index:1000">
+  <div style="background:#131a24;border:1px solid #1f2a37;padding:24px;border-radius:18px;width:90%;max-width:360px">
+    <h3 style="margin-bottom:12px">NovaTrade DEMO Login</h3>
+    <p style="font-size:11px;color:#6b7b8f;margin-bottom:14px">For class only. No real account. Data saved in browser only.</p>
+    <input id="loginEmail" placeholder="Demo email (e.g. student@strathmore.edu)" style="width:100%;padding:12px;border-radius:10px;border:1px solid #253141;background:#1a2330;color:white;margin-bottom:10px">
+    <input id="loginPass" type="password" placeholder="Any password (demo)" style="width:100%;padding:12px;border-radius:10px;border:1px solid #253141;background:#1a2330;color:white;margin-bottom:14px">
+    <button id="loginBtn" style="width:100%;padding:12px;background:#2962ff;border:none;border-radius:10px;color:white;font-weight:700;cursor:pointer">Enter DEMO</button>
+  </div>
+</div>
+
+<!-- DEPOSIT MODAL -->
+<div id="depositModal" style="position:fixed;inset:0;background:rgba(0,0,0,.8);display:none;align-items:center;justify-content:center;z-index:1000">
+  <div style="background:#131a24;border:1px solid #1f2a37;padding:24px;border-radius:18px;width:90%;max-width:360px">
+    <h3 style="margin-bottom:8px">DEMO Deposit</h3>
+    <p style="font-size:11px;color:#f0b90b;margin-bottom:14px"> real money. Adds real balance to localStorage for trading.</p>
+    <input id="depositAmount" type="number" placeholder="e.g. 1000" style="width:100%;padding:12px;border-radius:10px;border:1px solid #253141;background:#1a2330;color:white;margin-bottom:14px">
+    <div style="display:flex;gap:10px"><button id="confirmDeposit" style="flex:1;padding:12px;background:#34c77b;border:none;border-radius:10px;color:white;font-weight:700;cursor:pointer">Add Fake Balance</button><button id="closeDeposit" style="flex:1;padding:12px;background:#1a2330;border:1px solid #253141;border-radius:10px;color:white;cursor:pointer">Cancel</button></div>
+  </div>
+</div>
+(function(){
+const state={history:[]};
+const btcPriceEl=document.getElementById('btcPrice');
+const apiStatus=document.getElementById('apiStatus');
+const watchlist=document.getElementById('watchlistItems');
+const canvas=document.getElementById('chartCanvas');
+const ctx=canvas.getContext('2d');
+function fmt(v){return v<1?'$'+v.toFixed(4):'$'+v.toLocaleString();}
+function drawChart(){
+const w=canvas.width,h=canvas.height;ctx.clearRect(0,0,w,h);ctx.fillStyle='#10171f';ctx.fillRect(0,0,w,h);
+if(state.history.length<2)return;const min=Math.min(...state.history),max=Math.max(...state.history),range=max-min||1;
+ctx.strokeStyle='#2962ff';ctx.lineWidth=2.5;ctx.beginPath();
+state.history.forEach((p,i)=>{const x=(i/(state.history.length-1))*w;const y=h-((p-min)/range)*(h-30)-15;if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);});ctx.stroke();
+}
+async function fetchAll(){
+try{
+const res=await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana,ripple,cardano,dogecoin&vs_currencies=usd&include_24hr_change=true');
+const d=await res.json();
+const btc=d.bitcoin.usd;state.history.push(btc);if(state.history.length>100)state.history.shift();
+btcPriceEl.textContent=fmt(btc);apiStatus.textContent='Live - CoinGecko ✓';apiStatus.style.color='#34c77b';drawChart();
+const list=[
+{id:'bitcoin',sym:'BTC/USD',name:'Bitcoin'},
+{id:'ethereum',sym:'ETH/USD',name:'Ethereum'},
+{id:'solana',sym:'SOL/USD',name:'Solana'},
+{id:'ripple',sym:'XRP/USD',name:'Ripple'},
+{id:'cardano',sym:'ADA/USD',name:'Cardano'},
+{id:'dogecoin',sym:'DOGE/USD',name:'Dogecoin'}
+];
+watchlist.innerHTML=list.map(item=>{
+const info=d[item.id];const price=info.usd;const chg=info.usd_24h_change||0;
+return `<div class="watch-item"><div><b>${item.sym}</b><div style="font-size:10px;color:#6b7b8f">${item.name}</div></div><div style="text-align:right"><div>${fmt(price)}</div><div style="color:${chg>=0?'#34c77b':'#f6465d'}">${chg.toFixed(2)}%</div></div></div>`;
+}).join('');
+}catch(e){apiStatus.textContent='Retry... waiting for CoinGecko';}
+}
+for(let i=0;i<25;i++)state.history.push(64000+Math.sin(i/3)*300);
+drawChart();fetchAll();setInterval(fetchAll,15000);
+})();
+// --- DEMO LOGIN & DEPOSIT (localStorage only, for trading) ---
+const loginModal = document.getElementById('loginModal');
+const depositModal = document.getElementById('depositModal');
+let demoUser = JSON.parse(localStorage.getItem('ttnBINNARY_demo_user')||'null');
+let demoBalance = parseFloat(localStorage.getItem('ttnBINNARY_demo_balance')||'24562.80');
+
+function updateBalanceUI(){
+  document.getElementById('bal').textContent = '$' + demoBalance.toLocaleString() + ' DEMO';
+  localStorage.setItem('ttnBINNARY_demo_balance', demoBalance);
+}
+function checkLogin(){
+  if(demoUser){
+    loginModal.style.display='none';
+    document.getElementById('userEmailDisplay').textContent = demoUser.email;
+  }else{
+    loginModal.style.display='flex';
+  }
+  updateBalanceUI();
+}
+document.getElementById('loginBtn').onclick=()=>{
+  const email = document.getElementById('loginEmail').value.trim();
+  if(!email){ alert('Enter demo email for study'); return; }
+  demoUser = {email: email, loginAt: new Date().toISOString()};
+  localStorage.setItem('ttnBINNARY_demo_user', JSON.stringify(demoUser));
+  checkLogin();
+  showToast('Logged in DEMO as '+email);
+};
+document.getElementById('logoutBtn').onclick=()=>{
+  localStorage.removeItem('novatrade_demo_user');
+  demoUser=null; checkLogin();
+};
+document.getElementById('openDeposit').onclick=()=> depositModal.style.display='flex';
+document.getElementById('closeDeposit').onclick=()=> depositModal.style.display='none';
+document.getElementById('confirmDeposit').onclick=()=>{
+  const amt = parseFloat(document.getElementById('depositAmount').value);
+  if(!amt || amt<=0){ alert('Enter valid demo amount'); return; }
+  if(amt>100000){ alert('Demo limit 100k for study'); return; }
+  demoBalance += amt;
+  updateBalanceUI();
+  depositModal.style.display='none';
+  document.getElementById('depositAmount').value='';
+  showToast('DEMO +$'+amt+' added. No real money.');
+};
+// buy/sell now deducts/adds demo balance for learning
+const originalSubmit = document.getElementById('submitOrder')?.onclick;
+document.getElementById('submitOrder').onclick=(e)=>{
+  e.preventDefault();
+  if(!demoUser){ showToast('Login first (demo)'); return; }
+  if(!state.btcPrice){ showToast('Wait for price'); return; }
+  const amount = parseFloat(document.getElementById('orderAmount')?.value||0.1);
+  const cost = state.btcPrice * amount;
+  if(state.side==='buy'){
+    if(cost>demoBalance){ showToast('Insufficient DEMO balance'); return; }
+    demoBalance-=cost;
+  }else{
+    demoBalance+=cost;
+  }
+  updateBalanceUI();
+  showToast(`DEMO ${state.side.toUpperCase()} ${amount} BTC at ${fmt(state.btcPrice)} - Balance: ${fmt(demoBalance)}`);
+};
+checkLogin();
+</script>
+</body>
+</html>
